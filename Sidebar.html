@@ -1,0 +1,234 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <base target="_top">
+    <style>
+      :root {
+        --color-primary: #0f766e;
+        --color-text: #1f2937;
+        --color-muted: #4b5563;
+        --color-border: #d1d5db;
+        --color-disabled: #9ca3af;
+        --color-info-bg: #ecfeff;
+        --color-info-border: #06b6d4;
+        --color-success-bg: #dcfce7;
+        --color-success-text: #166534;
+        --color-error-bg: #fee2e2;
+        --color-error-text: #991b1b;
+      }
+
+      body {
+        box-sizing: border-box;
+        color: var(--color-text);
+        font-family: Arial, sans-serif;
+        margin: 0;
+        padding: 16px;
+      }
+
+      h2 {
+        color: var(--color-primary);
+        font-size: 18px;
+        margin: 0 0 12px;
+      }
+
+      p {
+        color: var(--color-muted);
+        font-size: 13px;
+        line-height: 1.45;
+        margin: 0 0 16px;
+      }
+
+      label {
+        display: block;
+        font-size: 12px;
+        font-weight: 700;
+        margin-bottom: 6px;
+      }
+
+      input {
+        border: 1px solid var(--color-border);
+        border-radius: 6px;
+        box-sizing: border-box;
+        font-size: 14px;
+        margin-bottom: 12px;
+        padding: 8px 10px;
+        width: 100%;
+      }
+
+      .checkbox-row {
+        align-items: flex-start;
+        display: flex;
+        gap: 8px;
+        margin: 2px 0 12px;
+      }
+
+      .checkbox-row input {
+        margin: 2px 0 0;
+        width: auto;
+      }
+
+      .checkbox-row label {
+        color: var(--color-muted);
+        font-size: 12px;
+        font-weight: 400;
+        line-height: 1.4;
+        margin: 0;
+      }
+
+      .warning {
+        background: #fffbeb;
+        border-left: 4px solid #f59e0b;
+        border-radius: 4px;
+        color: #92400e;
+        font-size: 12px;
+        line-height: 1.45;
+        margin-bottom: 12px;
+        padding: 10px;
+      }
+
+      button {
+        background: var(--color-primary);
+        border: 0;
+        border-radius: 6px;
+        color: #fff;
+        cursor: pointer;
+        font-size: 14px;
+        font-weight: 700;
+        padding: 10px 12px;
+        width: 100%;
+      }
+
+      button:disabled {
+        background: var(--color-disabled);
+        cursor: not-allowed;
+      }
+
+      .hint {
+        background: var(--color-info-bg);
+        border-left: 4px solid var(--color-info-border);
+        border-radius: 4px;
+        font-size: 12px;
+        margin-bottom: 16px;
+        padding: 10px;
+      }
+
+      .result {
+        border-radius: 6px;
+        display: none;
+        font-size: 13px;
+        line-height: 1.45;
+        margin-top: 14px;
+        padding: 10px;
+        white-space: pre-wrap;
+      }
+
+      .result.success {
+        background: var(--color-success-bg);
+        color: var(--color-success-text);
+        display: block;
+      }
+
+      .result.error {
+        background: var(--color-error-bg);
+        color: var(--color-error-text);
+        display: block;
+      }
+    </style>
+  </head>
+  <body>
+    <h2>TPSO CMI Price</h2>
+    <p>แก้ไขเงื่อนไขที่ต้องการใน Sidebar แล้วกดปุ่มเพื่อดึงข้อมูลจาก API ลงชีต</p>
+
+    <div class="hint">
+      ค่าเริ่มต้นเป็นเดือนย้อนหลังจากเดือนปัจจุบัน 1 เดือน และใช้ปี พ.ศ.
+    </div>
+
+    <form id="apiForm">
+      <label for="thaiYear">ปี พ.ศ.</label>
+      <input id="thaiYear" name="thaiYear" type="number" min="2400" max="2700" value="<?= defaults.thaiYear ?>" required>
+
+      <label for="month">เดือน</label>
+      <input id="month" name="month" type="number" min="1" max="12" value="<?= defaults.month ?>" required>
+
+      <label for="type">รหัสจังหวัด / type</label>
+      <input id="type" name="type" type="number" min="1" value="<?= defaults.type ?>" required>
+
+      <label for="sheetName">ชื่อชีตปลายทาง</label>
+      <input id="sheetName" name="sheetName" type="text" value="<?= defaults.sheetName ?>" required>
+
+      <input name="overwriteExisting" type="hidden" value="false">
+      <div class="checkbox-row">
+        <input id="overwriteExisting" name="overwriteExisting" type="checkbox" value="true" <?= defaults.overwriteExisting ? 'checked' : '' ?>>
+        <label for="overwriteExisting">ล้างข้อมูลเดิมในชีตปลายทางก่อนนำเข้า</label>
+      </div>
+
+      <div class="warning">
+        หากเลือกตัวเลือกนี้ ระบบจะล้างข้อมูลทั้งหมดในชีตปลายทางก่อนเขียนข้อมูลใหม่
+      </div>
+
+      <button id="submitButton" type="submit">ดึงข้อมูลลงชีต</button>
+    </form>
+
+    <div id="result" class="result"></div>
+
+    <script>
+      const UI = {
+        form: document.getElementById('apiForm'),
+        button: document.getElementById('submitButton'),
+        result: document.getElementById('result')
+      };
+
+      UI.form.addEventListener('submit', handleSubmit);
+
+      function handleSubmit(event) {
+        event.preventDefault();
+        setLoading(true);
+        setResult('', '');
+
+        google.script.run
+          .withSuccessHandler(handleSuccess)
+          .withFailureHandler(handleFailure)
+          .fetchCmiPriceFromSidebar(getFormValues(UI.form));
+      }
+
+      function getFormValues(form) {
+        return Array.from(new FormData(form).entries()).reduce(function (values, entry) {
+          values[entry[0]] = entry[1];
+          return values;
+        }, {});
+      }
+
+      function handleSuccess(summary) {
+        setLoading(false);
+        setResult(formatSuccessMessage(summary), 'success');
+      }
+
+      function handleFailure(error) {
+        setLoading(false);
+        setResult(error.message || String(error), 'error');
+      }
+
+      function formatSuccessMessage(summary) {
+        return [
+          'ดึงข้อมูลสำเร็จ',
+          'ชีต: ' + summary.sheetName,
+          'ปี/เดือน: ' + summary.thaiYear + '/' + summary.month,
+          'type: ' + summary.type,
+          'จำนวนแถว: ' + summary.rowCount,
+          'ล้างข้อมูลเดิม: ' + (summary.overwriteExisting ? 'ใช่' : 'ไม่ใช่'),
+          'บันทึกค่านี้สำหรับ Trigger รายเดือนแล้ว'
+        ].join('\n');
+      }
+
+      function setLoading(isLoading) {
+        UI.button.disabled = isLoading;
+        UI.button.textContent = isLoading ? 'กำลังดึงข้อมูล...' : 'ดึงข้อมูลลงชีต';
+      }
+
+      function setResult(message, type) {
+        UI.result.textContent = message;
+        UI.result.className = type ? 'result ' + type : 'result';
+      }
+    </script>
+  </body>
+</html>
